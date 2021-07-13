@@ -52,6 +52,7 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <errno.h>
+#include <fcntl.h>
 
 #if defined(__linux__)
 #include <sys/syscall.h>
@@ -190,6 +191,7 @@ struct va_trace {
     pthread_mutex_t resource_mutex;
     pthread_mutex_t context_mutex;
     VADisplay dpy;
+    int ftrace_fd;
 };
 
 #define LOCK_RESOURCE(pva_trace)                                    \
@@ -263,6 +265,11 @@ struct va_trace {
 } while (0)
 
 
+#define VA_TRACE_MAX_SIZE          (1024)
+#define VA_TRACE_HEADER_SIZE       (sizeof(int)*3)
+#define VA_TRACE_ID                (0x45544156)   // VATraceEvent in little endian
+#define FTRACE_ENTRY               "/sys/kernel/debug/tracing/trace_marker_raw"
+
 VAStatus vaBufferInfo(
     VADisplay dpy,
     VAContextID context,        /* in */
@@ -288,6 +295,96 @@ VAStatus vaLockSurface(VADisplay dpy,
 VAStatus vaUnlockSurface(VADisplay dpy,
                          VASurfaceID surface
                         );
+
+void va_TraceEvent(
+    VADisplay dpy,
+    unsigned short id,
+    unsigned short opcode,
+    struct event_data *desc,
+    unsigned int num)
+{
+    struct va_trace *pva_trace = (struct va_trace *)(((VADisplayContextP)dpy)->vatrace);
+    int data[VA_TRACE_MAX_SIZE / sizeof(int)];
+    size_t write_size = 0;
+    char *p_data;
+    int i;
+
+    if (pva_trace == NULL || pva_trace->ftrace_fd < 0) {
+        return;
+    }
+    data[0] = VA_TRACE_ID;
+    data[1] = id << 16;
+    data[2] = opcode;
+    p_data = (char *)&data[3];
+    write_size = VA_TRACE_HEADER_SIZE;
+    for (i = 0; i < num; i++) {
+        if (write_size + desc[i].size > VA_TRACE_MAX_SIZE) {
+            va_errorMessage(pva_trace->dpy, "error: trace event size(%d) > MAX size\n", write_size + desc[i].size);
+            break;
+        }
+        memcpy(p_data, desc[i].buf, desc[i].size);
+        p_data += desc[i].size;
+        write_size += desc[i].size;
+    }
+    if (i == num) {
+        data[1] |= write_size; // set event data size
+        write_size = write(pva_trace->ftrace_fd, data, write_size);
+    }
+    return;
+}
+
+void va_TraceEventBuffers(
+    VADisplay dpy,
+    VAContextID context,
+    int num_buffers,
+    VABufferID *buffers)
+{
+    struct va_trace *pva_trace = (struct va_trace *)(((VADisplayContextP)dpy)->vatrace);
+	VABufferType type;
+	unsigned int size, num;
+    int i;
+
+    if (pva_trace == NULL || pva_trace->ftrace_fd < 0) {
+        return;
+    }
+    for (i = 0; i < num_buffers; i++) {
+        unsigned char *pbuf = NULL;
+		unsigned int total = 0;
+        int data[3];
+        vaBufferInfo(dpy, context, buffers[i], &type, &size, &num);
+        vaMapBuffer(dpy, buffers[i], (void **)&pbuf);
+        if (pbuf == NULL)
+            continue;
+        total = size * num;
+        data[0] = type;
+        data[1] = size;
+        data[2] = total;
+        if (VA_TRACE_HEADER_SIZE + sizeof(data) + total <= VA_TRACE_MAX_SIZE) {
+            struct event_data desc[] = {{data, sizeof(data)}, {pbuf, total}};
+			va_TraceEvent(dpy, BUFFER_DATA, TRACE_INFO, desc, sizeof(desc)/sizeof(struct event_data));
+        } else {
+            struct event_data desc[2] = {{data, sizeof(data)}, {NULL, 0}};
+            unsigned int write_size = 0;
+
+			va_TraceEvent(dpy, BUFFER_DATA, TRACE_BEGIN, desc, 1);
+			desc[0].buf = &write_size;
+			desc[0].size = sizeof(write_size);
+            while (total > 0) {
+                write_size = total;
+				if (size > VA_TRACE_MAX_SIZE - VA_TRACE_HEADER_SIZE - sizeof(unsigned int)) {
+                    write_size =  VA_TRACE_MAX_SIZE - VA_TRACE_HEADER_SIZE - sizeof(unsigned int);
+				}
+			    desc[1].buf = pbuf;
+				desc[1].size = write_size;
+				va_TraceEvent(dpy, BUFFER_DATA, TRACE_DATA, desc, 2); 
+                total -= write_size;
+				pbuf += write_size;
+			}
+			va_TraceEvent(dpy, BUFFER_DATA, TRACE_END, NULL, 0);
+		}
+	}
+    return;
+}
 
 static int get_valid_config_idx(
     struct va_trace *pva_trace,
@@ -772,25 +869,38 @@ void va_TraceInit(VADisplay dpy)
     }
 
     pva_trace->dpy = dpy;
+    pva_trace->ftrace_fd = -1;
 
     pthread_mutex_init(&pva_trace->resource_mutex, NULL);
     pthread_mutex_init(&pva_trace->context_mutex, NULL);
 
+
     if (va_parseConfig("LIBVA_TRACE", &env_value[0]) == 0) {
         pva_trace->fn_log_env = strdup(env_value);
-        trace_ctx->plog_file = start_tracing2log_file(pva_trace);
-        if (trace_ctx->plog_file) {
-            trace_ctx->plog_file_list[0] = trace_ctx->plog_file;
-            va_trace_flag = VA_TRACE_FLAG_LOG;
+        if (strcmp(env_value, "FTRACE") == 0) {
+            pva_trace->ftrace_fd = open(FTRACE_ENTRY, O_WRONLY);
+            if (pva_trace->ftrace_fd >= 0) {
+                va_trace_flag = VA_TRACE_FLAG_FTRACE;
+                va_infoMessage(dpy, "LIBVA_TRACE is active in ftrace mode, use trace-cmd to capture\n");
+            } else {
+                va_errorMessage(dpy, "Open ftrace entry failed (%s)\n", strerror(errno));
+            }
+        } else {
+            trace_ctx->plog_file = start_tracing2log_file(pva_trace);
+            if (trace_ctx->plog_file) {
+                trace_ctx->plog_file_list[0] = trace_ctx->plog_file;
+                va_trace_flag = VA_TRACE_FLAG_LOG;
 
-            va_infoMessage(dpy, "LIBVA_TRACE is on, save log into %s\n",
-                           trace_ctx->plog_file->fn_log);
-        } else
-            va_errorMessage(dpy, "Open file %s failed (%s)\n", env_value, strerror(errno));
+                va_infoMessage(dpy, "LIBVA_TRACE is on, save log into %s\n",
+                               trace_ctx->plog_file->fn_log);
+            } else {
+                va_errorMessage(dpy, "Open file %s failed (%s)\n", env_value, strerror(errno));
+            }
+        }
     }
 
     /* may re-get the global settings for multiple context */
-    if ((va_trace_flag & VA_TRACE_FLAG_LOG) && (va_parseConfig("LIBVA_TRACE_BUFDATA", NULL) == 0)) {
+    if ((va_trace_flag & (VA_TRACE_FLAG_LOG | VA_TRACE_FLAG_FTRACE)) && (va_parseConfig("LIBVA_TRACE_BUFDATA", NULL) == 0)) {
         va_trace_flag |= VA_TRACE_FLAG_BUFDATA;
 
         va_infoMessage(dpy, "LIBVA_TRACE_BUFDATA is on, dump buffer into log file\n");
@@ -906,6 +1016,10 @@ void va_TraceEnd(VADisplay dpy)
         }
     }
     free(pva_trace->ptra_ctx[MAX_TRACE_CTX_NUM]);
+    // close ftrace file if have
+    if (pva_trace->ftrace_fd >= 0) {
+        close(pva_trace->ftrace_fd);
+    }
 
     pva_trace->dpy = NULL;
     free(pva_trace);
