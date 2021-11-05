@@ -41,7 +41,8 @@ extern int va_trace_flag;
                                        VA_TRACE_FLAG_SURFACE_ENCODE | \
                                        VA_TRACE_FLAG_SURFACE_JPEG)
 #define VA_TRACE_FLAG_FTRACE          0x40
-
+#define VA_TRACE_FLAG_FTRACE_BUFDATA  (VA_TRACE_FLAG_FTRACE | \
+                                       VA_TRACE_FLAG_BUFDATA)
 
 #define VA_TRACE_LOG(trace_func,...)            \
     if (va_trace_flag & VA_TRACE_FLAG_LOG) {    \
@@ -56,6 +57,7 @@ extern int va_trace_flag;
         va_TraceStatus(dpy, __func__, ret);     \
     }
 
+/* event id definition */
 enum {
     INVALIDE_ID = 0,
     CREATE_CONFIG = 1,
@@ -73,102 +75,107 @@ enum {
     SYNC_SURFACE,
     SYNC_SURFACE2,
     QUERY_SURFACE_ATTR,
-    CREATE_BUFFER2,
-    MAP_BUFFER,
-    UNMAP_BUFFER,
 };
 
+/* event opcode definition */
 #define TRACE_INFO  0
 #define TRACE_BEGIN 1
 #define TRACE_END   2
 #define TRACE_DATA  3
 
-struct event_data {
+typedef struct va_event_data {
     void *buf;
     unsigned int size;
-};
+} VAEventData;
 
-#define VA_TRACE(dpy,id,op)                     \
-    if (va_trace_flag & VA_TRACE_FLAG_FTRACE) {  \
-        va_TraceEvent(dpy, id, op, NULL, 0);   \
+#define VA_TRACE(dpy,id,op)                         \
+    if (va_trace_flag & VA_TRACE_FLAG_FTRACE) {     \
+        va_TraceEvent(dpy, id, op, 0, NULL);        \
     }
-#define VA_TRACE_V1(dpy,id,op,v1)               \
-    if (va_trace_flag & VA_TRACE_FLAG_FTRACE) {  \
-        struct event_data desc[1] = {{&v1, sizeof(v1)}};                  \
-        va_TraceEvent(dpy, id, op, desc, 1);   \
+#define VA_TRACE_V(dpy,id,op,v)                     \
+    if (va_trace_flag & VA_TRACE_FLAG_FTRACE) {     \
+        VAEventData desc[1] = {{&v, sizeof(v)}};    \
+        va_TraceEvent(dpy, id, op, 1, desc);        \
     }
-#define VA_TRACE_P1V1(dpy,id,op,p1,v1)               \
-    if (va_trace_flag & VA_TRACE_FLAG_FTRACE) {  \
-        struct event_data desc[2] = {{p1, sizeof(*p1)}, {&v1, sizeof(v1)}};\
-        va_TraceEvent(dpy, id, op, desc, 2);   \
+#define VA_TRACE_PV(dpy,id,op,p,v)                  \
+    if (va_trace_flag & VA_TRACE_FLAG_FTRACE) {     \
+        VAEventData desc[2] = {{p, sizeof(*p)},     \
+                               {&v, sizeof(v)}};    \
+        va_TraceEvent(dpy, id, op, 2, desc);        \
     }
-#define VA_TRACE_V2(dpy,id,op,v1,v2)               \
-    if (va_trace_flag & VA_TRACE_FLAG_FTRACE) {  \
-        struct event_data desc[2] = {{&v1, sizeof(v1)}, {&v2, sizeof(v2)}}; \
-        va_TraceEvent(dpy, id, op, desc, 2);   \
+#define VA_TRACE_VV(dpy,id,op,v1,v2)                \
+    if (va_trace_flag & VA_TRACE_FLAG_FTRACE) {     \
+        VAEventData desc[2] = {{&v1, sizeof(v1)},   \
+                               {&v2, sizeof(v2)}};  \
+        va_TraceEvent(dpy, id, op, 2, desc);        \
     }
-#define VA_TRACE_V3(dpy,id,op,v1,v2,v3)               \
-    if (va_trace_flag & VA_TRACE_FLAG_FTRACE) {  \
-        struct event_data desc[3] = {{&v1, sizeof(v1)}, {&v2, sizeof(v2)}, {&v3, sizeof(v3)}}; \
-        va_TraceEvent(dpy, id, op, desc, 3);   \
+#define VA_TRACE_VVVV(dpy,id,op,v1,v2,v3,v4)        \
+    if (va_trace_flag & VA_TRACE_FLAG_FTRACE) {     \
+        VAEventData desc[4] = { {&v1, sizeof(v1)},  \
+                                {&v2, sizeof(v2)},  \
+                                {&v3, sizeof(v3)},  \
+                                {&v4, sizeof(v4)}}; \
+        va_TraceEvent(dpy, id, op, 4, desc);        \
     }
-#define VA_TRACE_V4(dpy,id,op,v1,v2,v3,v4)               \
-    if (va_trace_flag & VA_TRACE_FLAG_FTRACE) {  \
-        struct event_data desc[4] = {{&v1, sizeof(v1)}, {&v2, sizeof(v2)}, {&v3, sizeof(v3)}, {&v4, sizeof(v4)}}; \
-        va_TraceEvent(dpy, id, op, desc, 4);   \
+#define VA_TRACE_VA(dpy,id,op,n,a)                   \
+    if (va_trace_flag & VA_TRACE_FLAG_FTRACE) {      \
+        int num = n | sizeof(*a) << 16;              \
+        VAEventData desc[2] = {{&num, sizeof(num)},  \
+                               {a, n * sizeof(*a)}}; \
+        va_TraceEvent(dpy, id, op, 2, desc);         \
     }
-#define VA_TRACE_V4P2(dpy,id,op,v1,v2,v3,v4,p1,p2)               \
-    if (va_trace_flag & VA_TRACE_FLAG_FTRACE) {  \
-        struct event_data desc[6] = {{&v1, sizeof(v1)}, {&v2, sizeof(v2)}, {&v3, sizeof(v3)}, {&v4, sizeof(v4)}, {p1, sizeof(*p1)}, {p2, sizeof(*p2)}}; \
-        va_TraceEvent(dpy, id, op, desc, 6);   \
+#define VA_TRACE_PA(dpy,id,op,pn,a)                  \
+    if (va_trace_flag & VA_TRACE_FLAG_FTRACE) {      \
+        int num = sizeof(*a) << 16;                  \
+        VAEventData desc[2] = {{&num, sizeof(num)},  \
+                               {a, 0}};              \
+        if (pn) {                                    \
+            num |= *pn;                              \
+            desc[1].size = (*pn) * sizeof(*a);       \
+        }                                            \
+        va_TraceEvent(dpy, id, op, 2, desc);         \
     }
-#define VA_TRACE_PD1(dpy,id,op,pn,pb)               \
-    if (va_trace_flag & VA_TRACE_FLAG_FTRACE) {  \
-        int data = sizeof(*pb) << 16;\
-        struct event_data desc[2] = {{&data, sizeof(data)}, {pb, 0}}; \
-        if (pn) { \
-            data |= *pn; \
-            desc[1].size = *pn * sizeof(*pb);\
-        }\
-        va_TraceEvent(dpy, id, op, desc, 2);   \
+#define VA_TRACE_VVA(dpy,id,op,v,n,a)                \
+    if (va_trace_flag & VA_TRACE_FLAG_FTRACE) {      \
+        int num = n | (sizeof(*a) << 16);            \
+        VAEventData desc[3] = {{&v, sizeof(v)},      \
+                               {&num, sizeof(num)},  \
+                               {a, n*sizeof(*a)}};   \
+        va_TraceEvent(dpy, id, op, 3, desc);         \
     }
-#define VA_TRACE_V1VD1(dpy,id,op,v1,vn,pb)               \
-    if (va_trace_flag & VA_TRACE_FLAG_FTRACE) {  \
-        int data[2] = {v1, vn | (sizeof(*pb) << 16)};\
-        struct event_data desc[2] = {{&data, sizeof(data)}, {pb, vn*sizeof(*pb)}}; \
-        va_TraceEvent(dpy, id, op, desc, 2);   \
+#define VA_TRACE_VVVA(dpy,id,op,v1,v2,n,a)           \
+    if (va_trace_flag & VA_TRACE_FLAG_FTRACE) {      \
+        int num = n | (sizeof(*a) << 16);            \
+        VAEventData desc[4] = {{&v1, sizeof(v1)},    \
+                               {&v2, sizeof(v2)},    \
+                               {&num, sizeof(num)},  \
+                               {a, n*sizeof(*a)}};   \
+        va_TraceEvent(dpy, id, op, 4, desc);         \
     }
-#define VA_TRACE_V2PD1(dpy,id,op,v1,v2,pn,pb)               \
-    if (va_trace_flag & VA_TRACE_FLAG_FTRACE) {  \
-        int data[3] = {v1, v2, sizeof(*pb) << 16};\
-        struct event_data desc[2] = {{&data, sizeof(data)}, {pb, 0}}; \
-        if (pn) { \
-            data[2] |= *pn; \
-            desc[1].size = *pn * sizeof(*pb);\
-        }\
-        va_TraceEvent(dpy, id, op, desc, 2);   \
+#define VA_TRACE_VVVVA(dpy,id,op,v1,v2,v3,n,a)       \
+    if (va_trace_flag & VA_TRACE_FLAG_FTRACE) {      \
+        int num = n | (sizeof(*a) << 16);            \
+        VAEventData desc[5] = {{&v1, sizeof(v1)},    \
+                               {&v2, sizeof(v2)},    \
+                               {&v3, sizeof(v3)},    \
+                               {&num, sizeof(num)},  \
+                               {a, n*sizeof(*a)}};   \
+        va_TraceEvent(dpy, id, op, 5, desc);         \
     }
-#define VA_TRACE_V2VD1(dpy,id,op,v1,v2,vn,p)               \
-    if (va_trace_flag & VA_TRACE_FLAG_FTRACE) {  \
-        int data[3] = {v1, v2, vn | (sizeof(*p) << 16)};\
-        struct event_data desc[2] = {{&data, sizeof(data)}, {p, vn*sizeof(*p)}}; \
-        va_TraceEvent(dpy, id, op, desc, 2);   \
+#define VA_TRACE_VVVVVA(dpy,id,op,v1,v2,v3,v4,n,a)   \
+    if (va_trace_flag & VA_TRACE_FLAG_FTRACE) {      \
+        int num = n | (sizeof(*a) << 16);            \
+        VAEventData desc[6] = {{&v1, sizeof(v1)},    \
+                               {&v2, sizeof(v2)},    \
+                               {&v3, sizeof(v3)},    \
+                               {&v4, sizeof(v4)},    \
+                               {&num, sizeof(num)},  \
+                               {a, n*sizeof(*a)}};   \
+        va_TraceEvent(dpy, id, op, 6, desc);         \
     }
-#define VA_TRACE_V3VD1(dpy,id,op,v1,v2,v3,vn,p)               \
-    if (va_trace_flag & VA_TRACE_FLAG_FTRACE) {  \
-        int data[4] = {v1, v2, v3, vn | (sizeof(*p) << 16)};\
-        struct event_data desc[2] = {{&data, sizeof(data)}, {p, vn*sizeof(*p)}}; \
-        va_TraceEvent(dpy, id, op, desc, 2);   \
-    }
-#define VA_TRACE_V4VD1(dpy,id,op,v1,v2,v3,v4,vn,p)               \
-    if (va_trace_flag & VA_TRACE_FLAG_FTRACE) {  \
-        int data[5] = {v1, v2, v3, v4, vn | (sizeof(*p) << 16)};\
-        struct event_data desc[2] = {{&data, sizeof(data)}, {p, vn*sizeof(*p)}}; \
-        va_TraceEvent(dpy, id, op, desc, 2);   \
-    }
-#define VA_TRACE_BUFFERS(dpy,ctx,num,buffers)               \
-    if (va_trace_flag & (VA_TRACE_FLAG_FTRACE | VA_TRACE_FLAG_BUFDATA) == (VA_TRACE_FLAG_FTRACE | VA_TRACE_FLAG_BUFDATA)) {  \
-        va_TraceEventBuffers(dpy, ctx, num, buffers);\
+#define VA_TRACE_BUFFERS(dpy,ctx,num,buffers)                                             \
+    if ((va_trace_flag & VA_TRACE_FLAG_FTRACE_BUFDATA) == VA_TRACE_FLAG_FTRACE_BUFDATA) { \
+        va_TraceEventBuffers(dpy, ctx, num, buffers);                                     \
     }
 
 DLL_HIDDEN
@@ -417,8 +424,8 @@ void va_TraceEvent(
     VADisplay dpy,
     unsigned short id,
     unsigned short opcode,
-    struct event_data *desc,
-    unsigned int num);
+    unsigned int num,
+    VAEventData *desc);
 
 void va_TraceEventBuffers(
     VADisplay dpy,

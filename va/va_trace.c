@@ -296,96 +296,6 @@ VAStatus vaUnlockSurface(VADisplay dpy,
                          VASurfaceID surface
                         );
 
-void va_TraceEvent(
-    VADisplay dpy,
-    unsigned short id,
-    unsigned short opcode,
-    struct event_data *desc,
-    unsigned int num)
-{
-    struct va_trace *pva_trace = (struct va_trace *)(((VADisplayContextP)dpy)->vatrace);
-    int data[VA_TRACE_MAX_SIZE / sizeof(int)];
-    size_t write_size = 0;
-    char *p_data;
-    int i;
-
-    if (pva_trace == NULL || pva_trace->ftrace_fd < 0) {
-        return;
-    }
-    data[0] = VA_TRACE_ID;
-    data[1] = id << 16;
-    data[2] = opcode;
-    p_data = (char *)&data[3];
-    write_size = VA_TRACE_HEADER_SIZE;
-    for (i = 0; i < num; i++) {
-        if (write_size + desc[i].size > VA_TRACE_MAX_SIZE) {
-            va_errorMessage(pva_trace->dpy, "error: trace event size(%d) > MAX size\n", write_size + desc[i].size);
-            break;
-        }
-        memcpy(p_data, desc[i].buf, desc[i].size);
-        p_data += desc[i].size;
-        write_size += desc[i].size;
-    }
-    if (i == num) {
-        data[1] |= write_size; // set event data size
-        write_size = write(pva_trace->ftrace_fd, data, write_size);
-    }
-    return;
-}
-
-void va_TraceEventBuffers(
-    VADisplay dpy,
-    VAContextID context,
-    int num_buffers,
-    VABufferID *buffers)
-{
-    struct va_trace *pva_trace = (struct va_trace *)(((VADisplayContextP)dpy)->vatrace);
-	VABufferType type;
-	unsigned int size, num;
-    int i;
-
-    if (pva_trace == NULL || pva_trace->ftrace_fd < 0) {
-        return;
-    }
-    for (i = 0; i < num_buffers; i++) {
-        unsigned char *pbuf = NULL;
-		unsigned int total = 0;
-        int data[3];
-        vaBufferInfo(dpy, context, buffers[i], &type, &size, &num);
-        vaMapBuffer(dpy, buffers[i], (void **)&pbuf);
-        if (pbuf == NULL)
-            continue;
-        total = size * num;
-        data[0] = type;
-        data[1] = size;
-        data[2] = total;
-        if (VA_TRACE_HEADER_SIZE + sizeof(data) + total <= VA_TRACE_MAX_SIZE) {
-            struct event_data desc[] = {{data, sizeof(data)}, {pbuf, total}};
-			va_TraceEvent(dpy, BUFFER_DATA, TRACE_INFO, desc, sizeof(desc)/sizeof(struct event_data));
-        } else {
-            struct event_data desc[2] = {{data, sizeof(data)}, {NULL, 0}};
-            unsigned int write_size = 0;
-
-			va_TraceEvent(dpy, BUFFER_DATA, TRACE_BEGIN, desc, 1);
-			desc[0].buf = &write_size;
-			desc[0].size = sizeof(write_size);
-            while (total > 0) {
-                write_size = total;
-				if (size > VA_TRACE_MAX_SIZE - VA_TRACE_HEADER_SIZE - sizeof(unsigned int)) {
-                    write_size =  VA_TRACE_MAX_SIZE - VA_TRACE_HEADER_SIZE - sizeof(unsigned int);
-				}
-			    desc[1].buf = pbuf;
-				desc[1].size = write_size;
-				va_TraceEvent(dpy, BUFFER_DATA, TRACE_DATA, desc, 2); 
-                total -= write_size;
-				pbuf += write_size;
-			}
-			va_TraceEvent(dpy, BUFFER_DATA, TRACE_END, NULL, 0);
-		}
-	}
-    return;
-}
-
 static int get_valid_config_idx(
     struct va_trace *pva_trace,
     VAConfigID config_id)
@@ -5955,4 +5865,96 @@ void va_TraceStatus(VADisplay dpy, const char * funcName, VAStatus status)
 
     va_TraceMsg(trace_ctx, "=========%s ret = %s, %s \n", funcName, vaStatusStr(status), vaErrorStr(status));
     DPY2TRACE_VIRCTX_EXIT(pva_trace);
+}
+
+void va_TraceEvent(
+    VADisplay dpy,
+    unsigned short id,
+    unsigned short opcode,
+    unsigned int num,
+    VAEventData *desc
+)
+{
+    struct va_trace *pva_trace = (struct va_trace *)(((VADisplayContextP)dpy)->vatrace);
+    int data[VA_TRACE_MAX_SIZE / sizeof(int)];
+    size_t write_size = 0;
+    char *p_data;
+    int i;
+
+    if (pva_trace == NULL || pva_trace->ftrace_fd < 0) {
+        return;
+    }
+    data[0] = VA_TRACE_ID;
+    data[1] = id << 16;
+    data[2] = opcode;
+    p_data = (char *)&data[3];
+    write_size = VA_TRACE_HEADER_SIZE;
+    for (i = 0; i < num; i++) {
+        if (write_size + desc[i].size > VA_TRACE_MAX_SIZE) {
+            va_errorMessage(pva_trace->dpy, "error: trace event %d carry too big data. max size \n", id, VA_TRACE_MAX_SIZE);
+            break;
+        }
+        memcpy(p_data, desc[i].buf, desc[i].size);
+        p_data += desc[i].size;
+        write_size += desc[i].size;
+    }
+    if (i == num) {
+        data[1] |= write_size; // set event data size before write
+        write_size = write(pva_trace->ftrace_fd, data, write_size);
+    }
+    return;
+}
+
+void va_TraceEventBuffers(
+    VADisplay dpy,
+    VAContextID context,
+    int num_buffers,
+    VABufferID *buffers)
+{
+    struct va_trace *pva_trace = (struct va_trace *)(((VADisplayContextP)dpy)->vatrace);
+    VABufferType type;
+    unsigned int size, num;
+    int i;
+
+    if (pva_trace == NULL || pva_trace->ftrace_fd < 0) {
+        return;
+    }
+    for (i = 0; i < num_buffers; i++) {
+        unsigned char *pbuf = NULL;
+        unsigned int total = 0;
+        int data[3];
+        vaBufferInfo(dpy, context, buffers[i], &type, &size, &num);
+        vaMapBuffer(dpy, buffers[i], (void **)&pbuf);
+        if (pbuf == NULL)
+            continue;
+        total = size * num;
+        data[0] = type;
+        data[1] = size;
+        data[2] = total;
+        if (VA_TRACE_HEADER_SIZE + sizeof(data) + total <= VA_TRACE_MAX_SIZE) {
+            VAEventData desc[] = {{data, sizeof(data)}, {pbuf, total}};
+            va_TraceEvent(dpy, BUFFER_DATA, TRACE_INFO, 2, desc);
+        } else {
+            // split buffer data to send in multi trace event
+            VAEventData desc[2] = {{data, sizeof(data)}, {NULL, 0}};
+            unsigned int write_size = 0;
+
+            va_TraceEvent(dpy, BUFFER_DATA, TRACE_BEGIN, 1, desc);
+            desc[0].buf = &write_size;
+            desc[0].size = sizeof(write_size);
+            while (total > 0) {
+                write_size = total;
+                if (write_size > VA_TRACE_MAX_SIZE - VA_TRACE_HEADER_SIZE - sizeof(unsigned int)) {
+                    write_size = VA_TRACE_MAX_SIZE - VA_TRACE_HEADER_SIZE - sizeof(unsigned int);
+                }
+                desc[1].buf = pbuf;
+                desc[1].size = write_size;
+                va_TraceEvent(dpy, BUFFER_DATA, TRACE_DATA, 2, desc);
+                total -= write_size;
+                pbuf += write_size;
+            }
+            va_TraceEvent(dpy, BUFFER_DATA, TRACE_END, 0, NULL);
+        }
+    }
+    return;
 }
