@@ -119,6 +119,7 @@ extern "C" {
  *  - \ref api_enc_mpeg2
  *  - \ref api_enc_vp8
  *  - \ref api_enc_vp9
+ *  - \ref api_enc_av1
  * - Decoder (HEVC, JPEG, VP8, VP9, AV1)
  *      - \ref api_dec_hevc
  *      - \ref api_dec_jpeg
@@ -996,6 +997,37 @@ typedef enum {
      * support the VAConfigAttribEncHEVCFeatures attribute.
      */
     VAConfigAttribEncHEVCBlockSizes     = 51,
+    /**
+     * \brief AV1 encoding attribute. Read-only.
+     *
+     * This attribute exposes a number of capabilities of the underlying
+     * AV1 implementation. The attribute value is partitioned into fields as defined in the
+     * VAConfigAttribValEncAV1 union.
+     */
+    VAConfigAttribEncAV1                = 52,
+    /**
+     * \brief AV1 encoding attribute extend1. Read-only.
+     *
+     * This attribute exposes a number of capabilities of the underlying
+     * AV1 implementation. The attribute value is partitioned into fields as defined in the
+     * VAConfigAttribValEncAV1Ext1 union.
+     */
+    VAConfigAttribEncAV1Ext1            = 53,
+    /**
+     * \brief AV1 encoding attribute extend2. Read-only.
+     *
+     * This attribute exposes a number of capabilities of the underlying
+     * AV1 implementation. The attribute value is partitioned into fields as defined in the
+     * VAConfigAttribValEncAV1Ext2 union.
+     */
+    VAConfigAttribEncAV1Ext2            = 54,
+    /** \brief Settings per block attribute for Encoding.  Read-only.
+     *
+     * This attribute describes whether to support delta qp per block,
+     * the supported size of delta qp block and the size of delta QP in bytes.
+     * The value returned uses the VAConfigAttribValEncPerBlockControl type.
+     */
+    VAConfigAttribEncPerBlockControl    = 55,
     /**@}*/
     VAConfigAttribTypeMax
 } VAConfigAttribType;
@@ -1375,6 +1407,21 @@ typedef union _VAConfigAttribValContextPriority {
     } bits;
     uint32_t value;
 } VAConfigAttribValContextPriority;
+
+/** brief Attribute value VAConfigAttribEncPerBlockControl */
+typedef union _VAConfigAttribValEncPerBlockControl {
+    struct {
+        /** \brief whether to support dela qp per block */
+        uint32_t delta_qp_support         : 1;
+        /** \brief supported size of delta qp block */
+        uint32_t log2_delta_qp_block_size : 4;
+        /** \brief size of delta qp per block in bytes*/
+        uint32_t delta_qp_size_in_bytes   : 3;
+        /** \brief reserved bit for future, must be zero */
+        uint32_t reserved                 : 24;
+    } bits;
+    uint32_t value;
+} VAConfigAttribValEncPerBlockControl;
 
 /** @name Attribute values for VAConfigAttribProtectedContentCipherAlgorithm */
 /** \brief AES cipher */
@@ -2043,6 +2090,17 @@ typedef enum {
      * Refer to \c VAEncryptionParameters
     */
     VAEncryptionParameterBufferType = 60,
+
+    /**
+     * \brief Encoding delta QP per block buffer
+     *
+     * This buffer only could be created and accepted
+     * when \c VAConfigAttribValEncPerBlockControl delta_qp_support == 1.
+     * This input buffer contains delta QP per block for encoding.
+     * The supported size of delta QP block and the size of delta QP
+     * must be quried from \c VAConfigAttribValEncPerBlockControl.
+     */
+    VAEncDeltaQpPerBlockBufferType   = 61,
 
     VABufferTypeMax
 } VABufferType;
@@ -5191,6 +5249,7 @@ VAStatus vaCopy(VADisplay dpy, VACopyObject * dst, VACopyObject * src, VACopyOpt
 #include <va/va_enc_mpeg2.h>
 #include <va/va_enc_vp8.h>
 #include <va/va_enc_vp9.h>
+#include <va/va_enc_av1.h>
 #include <va/va_fei.h>
 #include <va/va_fei_h264.h>
 #include <va/va_vpp.h>
