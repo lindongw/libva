@@ -28,7 +28,6 @@
 #include "va_backend.h"
 #include "va_internal.h"
 #include "va_trace.h"
-#include "va_fool.h"
 #include "va_x11.h"
 #include "va_dri2.h"
 #include "va_dricommon.h"
@@ -55,6 +54,7 @@ static const struct driver_name_map g_dri2_driver_name_map[] = {
     { "i965",       4, "i965"   }, // Intel i965 VAAPI driver with i965 DRI driver
     { "iris",       4, "iHD"    }, // Intel iHD  VAAPI driver with iris DRI driver
     { "iris",       4, "i965"   }, // Intel i965 VAAPI driver with iris DRI driver
+    { "crocus",     6, "i965"   }, // Intel i965 VAAPI driver with crocus DRI driver
     { NULL,         0, NULL }
 };
 
@@ -330,9 +330,6 @@ VAStatus vaPutSurface(
 )
 {
     VADriverContextP ctx;
-
-    if (va_fool_postp)
-        return VA_STATUS_SUCCESS;
 
     CHECK_DISPLAY(dpy);
     ctx = CTX(dpy);

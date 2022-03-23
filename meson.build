@@ -7,8 +7,8 @@
 # - reset micro version to zero when VA-API major or minor version is changed
 project(
   'libva', 'c',
-  version : '2.14.0.1',
-  meson_version : '>= 0.37.0',
+  version : '2.15.0.1',
+  meson_version : '>= 0.53.0',
   default_options : [ 'warning_level=1',
                       'buildtype=debugoptimized' ])
 
@@ -103,7 +103,7 @@ if get_option('with_wayland') != 'no'
   wayland_dep = dependency('wayland-client', version : '>= 1.11.0',
 			   required : get_option('with_wayland') == 'yes')
   if wayland_dep.found()
-    wl_prefix = wayland_dep.get_pkgconfig_variable('prefix')
+    wl_prefix = wayland_dep.get_variable(pkgconfig: 'prefix')
     wl_scanner = find_program('wayland-scanner',
 			      wl_prefix + '/bin/wayland-scanner')
   endif
