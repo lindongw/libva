@@ -1377,108 +1377,108 @@ VAStatus vaCreateBuffer(
     CHECK_DISPLAY(dpy);
     ctx = CTX(dpy);
 
-	    VA_TRACE_VVVV(dpy, CREATE_BUFFER, TRACE_BEGIN, context, type, size, num_elements);
-	    vaStatus = ctx->vtable->vaCreateBuffer(ctx, context, type, size, num_elements, data, buf_id);
+    VA_TRACE_VVVV(dpy, CREATE_BUFFER, TRACE_BEGIN, context, type, size, num_elements);
+    vaStatus = ctx->vtable->vaCreateBuffer(ctx, context, type, size, num_elements, data, buf_id);
 
-	    VA_TRACE_LOG(va_TraceCreateBuffer,
-			 dpy, context, type, size, num_elements, data, buf_id);
+    VA_TRACE_LOG(va_TraceCreateBuffer,
+                 dpy, context, type, size, num_elements, data, buf_id);
 
-	    VA_TRACE_RET(dpy, vaStatus);
-	    VA_TRACE_PV(dpy, CREATE_BUFFER, TRACE_END, buf_id, vaStatus);
-	    return vaStatus;
-	}
+    VA_TRACE_RET(dpy, vaStatus);
+    VA_TRACE_PV(dpy, CREATE_BUFFER, TRACE_END, buf_id, vaStatus);
+    return vaStatus;
+}
 
-	VAStatus vaCreateBuffer2(
-	    VADisplay dpy,
-	    VAContextID context,
-	    VABufferType type,
-	    unsigned int width,
-	    unsigned int height,
-	    unsigned int *unit_size,
-	    unsigned int *pitch,
-	    VABufferID *buf_id
-	)
-	{
-	    VADriverContextP ctx;
-	    VAStatus vaStatus;
+VAStatus vaCreateBuffer2(
+    VADisplay dpy,
+    VAContextID context,
+    VABufferType type,
+    unsigned int width,
+    unsigned int height,
+    unsigned int *unit_size,
+    unsigned int *pitch,
+    VABufferID *buf_id
+)
+{
+    VADriverContextP ctx;
+    VAStatus vaStatus;
 
-	    CHECK_DISPLAY(dpy);
-	    ctx = CTX(dpy);
-	    if (!ctx->vtable->vaCreateBuffer2)
-		return VA_STATUS_ERROR_UNIMPLEMENTED;
+    CHECK_DISPLAY(dpy);
+    ctx = CTX(dpy);
+    if (!ctx->vtable->vaCreateBuffer2)
+        return VA_STATUS_ERROR_UNIMPLEMENTED;
 
-	    vaStatus = ctx->vtable->vaCreateBuffer2(ctx, context, type, width, height, unit_size, pitch, buf_id);
+    vaStatus = ctx->vtable->vaCreateBuffer2(ctx, context, type, width, height, unit_size, pitch, buf_id);
 
-	    VA_TRACE_LOG(va_TraceCreateBuffer,
-			 dpy, context, type, *pitch, height, NULL, buf_id);
-	    VA_TRACE_RET(dpy, vaStatus);
+    VA_TRACE_LOG(va_TraceCreateBuffer,
+                 dpy, context, type, *pitch, height, NULL, buf_id);
+    VA_TRACE_RET(dpy, vaStatus);
 
-	    return vaStatus;
-	}
+    return vaStatus;
+}
 
-	VAStatus vaBufferSetNumElements(
-	    VADisplay dpy,
-	    VABufferID buf_id,  /* in */
-	    unsigned int num_elements /* in */
-	)
-	{
-	    VADriverContextP ctx;
-	    VAStatus vaStatus = VA_STATUS_SUCCESS;
-	    CHECK_DISPLAY(dpy);
-	    ctx = CTX(dpy);
+VAStatus vaBufferSetNumElements(
+    VADisplay dpy,
+    VABufferID buf_id,  /* in */
+    unsigned int num_elements /* in */
+)
+{
+    VADriverContextP ctx;
+    VAStatus vaStatus = VA_STATUS_SUCCESS;
+    CHECK_DISPLAY(dpy);
+    ctx = CTX(dpy);
 
-	    vaStatus = ctx->vtable->vaBufferSetNumElements(ctx, buf_id, num_elements);
-	    VA_TRACE_RET(dpy, vaStatus);
-	    return vaStatus;
-	}
+    vaStatus = ctx->vtable->vaBufferSetNumElements(ctx, buf_id, num_elements);
+    VA_TRACE_RET(dpy, vaStatus);
+    return vaStatus;
+}
 
 
-	VAStatus vaMapBuffer(
-	    VADisplay dpy,
-	    VABufferID buf_id,  /* in */
-	    void **pbuf     /* out */
-	)
-	{
-	    VADriverContextP ctx;
-	    VAStatus va_status;
+VAStatus vaMapBuffer(
+    VADisplay dpy,
+    VABufferID buf_id,  /* in */
+    void **pbuf     /* out */
+)
+{
+    VADriverContextP ctx;
+    VAStatus va_status;
 
-	    CHECK_DISPLAY(dpy);
-	    ctx = CTX(dpy);
+    CHECK_DISPLAY(dpy);
+    ctx = CTX(dpy);
 
-	    va_status = ctx->vtable->vaMapBuffer(ctx, buf_id, pbuf);
+    va_status = ctx->vtable->vaMapBuffer(ctx, buf_id, pbuf);
 
-	    VA_TRACE_ALL(va_TraceMapBuffer, dpy, buf_id, pbuf);
-	    VA_TRACE_RET(dpy, va_status);
+    VA_TRACE_ALL(va_TraceMapBuffer, dpy, buf_id, pbuf);
+    VA_TRACE_RET(dpy, va_status);
 
-	    return va_status;
-	}
+    return va_status;
+}
 
-	VAStatus vaUnmapBuffer(
-	    VADisplay dpy,
-	    VABufferID buf_id   /* in */
-	)
-	{
-	    VADriverContextP ctx;
-	    VAStatus vaStatus = VA_STATUS_SUCCESS;
-	    CHECK_DISPLAY(dpy);
-	    ctx = CTX(dpy);
+VAStatus vaUnmapBuffer(
+    VADisplay dpy,
+    VABufferID buf_id   /* in */
+)
+{
+    VADriverContextP ctx;
+    VAStatus vaStatus = VA_STATUS_SUCCESS;
+    CHECK_DISPLAY(dpy);
+    ctx = CTX(dpy);
 
-	    vaStatus = ctx->vtable->vaUnmapBuffer(ctx, buf_id);
-	    VA_TRACE_RET(dpy, vaStatus);
-	    return vaStatus;
-	}
+    vaStatus = ctx->vtable->vaUnmapBuffer(ctx, buf_id);
+    VA_TRACE_RET(dpy, vaStatus);
+    return vaStatus;
+}
 
-	VAStatus vaDestroyBuffer(
-	    VADisplay dpy,
-	    VABufferID buffer_id
-	)
-	{
-	    VADriverContextP ctx;
-	    VAStatus vaStatus = VA_STATUS_SUCCESS;
-	    CHECK_DISPLAY(dpy);
-	    ctx = CTX(dpy);
+VAStatus vaDestroyBuffer(
+    VADisplay dpy,
+    VABufferID buffer_id
+)
+{
+    VADriverContextP ctx;
+    VAStatus vaStatus = VA_STATUS_SUCCESS;
+    CHECK_DISPLAY(dpy);
+    ctx = CTX(dpy);
 
-	    VA_TRACE_V(dpy, DESTROY_BUFFER, TRACE_BEGIN, buffer_id);
+    VA_TRACE_V(dpy, DESTROY_BUFFER, TRACE_BEGIN, buffer_id);
     VA_TRACE_LOG(va_TraceDestroyBuffer,
                  dpy, buffer_id);
 

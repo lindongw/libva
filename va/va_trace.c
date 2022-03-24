@@ -6108,7 +6108,11 @@ void va_TraceEvent(
             va_errorMessage(pva_trace->dpy, "error: trace event %d carry too big data. max size \n", id, VA_TRACE_MAX_SIZE);
             break;
         }
-        memcpy(p_data, desc[i].buf, desc[i].size);
+        if (desc[i].buf) {
+            memcpy(p_data, desc[i].buf, desc[i].size);
+        } else {
+            memset(p_data, 0xff, desc[i].size);
+        }
         p_data += desc[i].size;
         write_size += desc[i].size;
     }
